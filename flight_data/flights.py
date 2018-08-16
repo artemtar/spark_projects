@@ -38,7 +38,7 @@ def parse(row):
 
 flights_parsed = flights_parsed.map(parse)
 
-flights_parsed.map(parse).first()
+flights_parsed.first()
 
 tottal_dist = flights_parsed.map(lambda x: x.distance).reduce(lambda x,y: x + y)
 avg_dist = tottal_dist/flights.count()
@@ -58,5 +58,23 @@ avg_delay = sum_delays[0] / sum_delays[1]
 avg_delay
 
 delay_distr = flights_parsed.map(lambda x: int(x.dep_delay/60)).countByValue()
+delay_distr
+
+airports_pair_rdd = flights_parsed.map(lambda x: (x.origin, x.dep_delay))
+airports_pair_rdd.keys().take(10)
+
+all_delays = airports_pair_rdd.reduceByKey(lambda x, y: x + y)
+
+
+count_airports = airports_pair_rdd.mapValues(lambda x: 1)
+count_airports_tottal = count_airports.reduceByKey(lambda x, y: x + y)
+
+airports_tottal = all_delays.join(count_airports_tottal)
+airports_tottal.mapValues(lambda x: x[0] / x[1]).take(10)
+
+airports_delays = airports_pair_rdd.combineByKey((lambda value: (value, 1)), (lambda acc, val: (acc[0] + val, acc[1] + 1)), (lambda acc1, acc2: (acc1[0] + acc2[0], acc1[1] + acc2[1])))
+airports_delays.take(10)
+
+airports_delays.sortBy(lambda x: -x[1][0]).take(10)
 
 sc.stop()
