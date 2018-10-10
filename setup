@@ -1,0 +1,6 @@
+./gcloud compute ssh --zone=us-east1-b --ssh-flag="-D" --ssh-flag="10000" --ssh-flag="-N" "cluster-project-m"
+
+/usr/bin/google-chrome-stable "http://cluster-project-m:8088" --proxy-server="socks5://localhost:10000" --host-resolver-rules="MAP * 0.0.0.0 , EXCLUDE localhost" --user-data-dir=/tmp/cluster-project-m
+
+~/anaconda3/bin/jupyter-notebook --no-browser --port=5000
+
