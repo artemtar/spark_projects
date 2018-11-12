@@ -5,6 +5,7 @@ object Cells {
   import org.apache.spark.sql.DataFrame
   import org.apache.spark.sql.functions._
   
+  
   // io
   import scala.io._
   import com.fasterxml.jackson.databind.ObjectMapper
@@ -90,13 +91,13 @@ object Cells {
         .setOutputCol("result")
         .setVectorSize(300)
         .setMinCount(0)
-    }
+    }  
     
     def tokenize(input: String): DataFrame = {
       val tokenizer = MakeTokenizer(input)
       tokenizer.transform(df)
-    }
-  
+    } 
+    
     val cleaning: WrappedArray[String] => Array[String] = (v: WrappedArray[String]) => {
       
       val unwraped = v.asInstanceOf[WrappedArray[String]].toArray
@@ -106,8 +107,6 @@ object Cells {
       .replaceAll( """<(?!\/?a(?=>|\s.*>))\/?.*?>""", "")
       removeSpaseLowerCase
   //     .replaceAll("\\<[^>]*>", "")
-  
-  
   }
     val cleaningUDF = 
       udf[Array[String], WrappedArray[String]](cleaning)
@@ -124,7 +123,10 @@ object Cells {
       val model = vector.fit(noStopWords)
       model.transform(noStopWords)
     }
-  }
+  
+    }  
+    
+  
   
   case class AuthorModel(val AuthourId: String,
                          val df: DataFrame,
@@ -154,10 +156,88 @@ object Cells {
     
   }
   
-  def mdgToVector(msg: String) = {
+  def msgToVector(msg: String) = {
+    
+    val tokenizer = new Tokenizer()
+    val remover = new StopWordsRemover()  
+    val getW2V = new Word2Vec().setVectorSize(300)
+    
+  
+  //     tokenizer.transform(msg)
+  
+  //   val cleaning: WrappedArray[String] => Array[String] = (v: WrappedArray[String]) => {
+      
+  //     val unwraped = v.asInstanceOf[WrappedArray[String]].toArray
+  //     val removeSpaseLowerCase =
+  //       for(e <- unwraped if !e.isEmpty())
+  //         yield e.trim.toLowerCase()
+  //     .replaceAll( """<(?!\/?a(?=>|\s.*>))\/?.*?>""", "")
+  //     removeSpaseLowerCase
+  // }
     
   }
   
+  case class MsgMaker() {    
+  
+    val tokenizer = 
+      new Tokenizer()
+    .setInputCol("msg")
+    .setOutputCol("raw")
+    
+    val remover = 
+     new StopWordsRemover()
+    .setInputCol("raw")
+    .setOutputCol("filtered")
+    
+    val toVec = 
+        new Word2Vec()
+        .setInputCol("filtered")
+        .setOutputCol("result")
+        .setVectorSize(300)
+        .setMinCount(0)  
+    
+    
+      val cleaning: WrappedArray[String] => Array[String] = (v: WrappedArray[String]) => {
+      
+      val unwraped = v.asInstanceOf[WrappedArray[String]].toArray
+      val removeSpaseLowerCase =
+        for(e <- unwraped if !e.isEmpty())
+          yield e.trim.toLowerCase()
+      .replaceAll( """<(?!\/?a(?=>|\s.*>))\/?.*?>""", "")
+      removeSpaseLowerCase
+  //     .replaceAll("\\<[^>]*>", "")
+  }
+    val cleaningUDF = 
+      udf[Array[String], WrappedArray[String]](cleaning)
+    
+  
+      def msgToVec(msg: String, session: SparkSession ) = {    
+        import session.implicits._
+        val msgDf = Seq(msg).toDF("msg")
+        val tokenized = tokenizer.transform(msgDf)
+        val msgCleaned = cleanData(tokenized)
+        msgCleaned.rdd.map(row => { val lable = 0
+                              val vector = row.getAs[org.apache.spark.ml.linalg.SparseVector]("result").toDense
+                              org.apache.spark.mllib.linalg.Vectors.fromML(vector)})  
+      }
+    
+      def cleanData(dfDirty: DataFrame): DataFrame = {
+  //     val s1 = dfDirty.filter(col("raw").like("_"))
+                              
+  //       x != ':' || x != ';' || x != '/'  || x != '-' || x != '_' || x != ')' || x != '(' || x != '>' || x != '<')
+      
+      val s2 = dfDirty.withColumn("rawTrimed", cleaningUDF(col("raw")))
+      val noStopWords = remover.transform(s2)
+      val model = toVec.fit(noStopWords)
+      model.transform(noStopWords)
+    }
+  
+  
+  def userInput(session: SparkSession) = {
+    val msg = readLine("Type the msg: ")
+    msgToVec(msg, session)
+  }
+  }
   
   object SparkSessionCreate { 
     val createSession: SparkSession = { 
@@ -206,7 +286,25 @@ object Cells {
 
   /* ... new cell ... */
 
+  import session.implicits._
+  val mm = MsgMaker()
+  val i = mm.msgToVec("should this match", session)
+
+  /* ... new cell ... */
+
+  model.predict(i).collect
+
+  /* ... new cell ... */
+
   
+  val f = i.map({case LabeledPoint(label, features) => features})
+
+  /* ... new cell ... */
+
+  model
+  model.clearThreshold()
+  val res = model.predict(f)
+  res.collect
 
   /* ... new cell ... */
 
