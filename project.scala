@@ -156,27 +156,6 @@ object Cells {
     
   }
   
-  def msgToVector(msg: String) = {
-    
-    val tokenizer = new Tokenizer()
-    val remover = new StopWordsRemover()  
-    val getW2V = new Word2Vec().setVectorSize(300)
-    
-  
-  //     tokenizer.transform(msg)
-  
-  //   val cleaning: WrappedArray[String] => Array[String] = (v: WrappedArray[String]) => {
-      
-  //     val unwraped = v.asInstanceOf[WrappedArray[String]].toArray
-  //     val removeSpaseLowerCase =
-  //       for(e <- unwraped if !e.isEmpty())
-  //         yield e.trim.toLowerCase()
-  //     .replaceAll( """<(?!\/?a(?=>|\s.*>))\/?.*?>""", "")
-  //     removeSpaseLowerCase
-  // }
-    
-  }
-  
   case class MsgMaker() {    
   
     val tokenizer = 
@@ -258,6 +237,49 @@ object Cells {
 
   /* ... new cell ... */
 
+  case class Classifier(authorList: Array[(Any, LogisticRegressionWithLBFGS)]){
+    def classify() = {}
+    def save() = {}
+  
+  }
+  case class Controller(val df: DataFrame){
+    
+    def createTopReviewrs(selectList: Seq): DataFrame = {
+      val topReviewrMaker = new Reviewers(df)
+      topReviewrMaker.top(selectList, 10)
+    }
+    
+    def topReviewrsToList() = {
+      val selectList = Seq("reviewerID")
+      val dfTopReviers = createTopReviewrs(selectList)
+      dfTopReviers.collect
+    }
+    
+    def cleanEachTopAuthor() = {
+      val selectList = Seq("reviewerID", "reviewerName", "reviewText", "summary")
+      val dfTopReviers = createTopReviewrs(selectList)
+      val cleaner = DataPrep(dfTopReviers)
+      val tokenized = cleaner.tokenize("reviewText")
+      cleaner.cleanData(tokenized)    
+    }
+    
+    def makeAuthorModel(authourId: String, cleanData: DataFrame) = {
+      val select = a.select("raw", "rawTrimed", "filtered", "result")
+      val author = AuthorModel(authourId, DataFrame, 0.9, 0.1)
+      val authorTestTrainSet = m.makeTestSet()
+      m.train(authorTestTrainSet)
+    }
+    
+    def getTrainedModelList() = {  
+      val authorList = topReviewrsToList()
+      val authorModels
+      authorList.map(e => (e(0), makeAuthorModel(e(0)))
+      Classifier(authorList)
+    }
+  }
+
+  /* ... new cell ... */
+
   val session: SparkSession = SparkSessionCreate.createSession
   val path: String = "/home/atarasov/Documents/111/test.json"
   val data = Data(path)    
@@ -277,7 +299,7 @@ object Cells {
   val cleaner = DataPrep(dfTopReviers)
   val tok = cleaner.tokenize("reviewText")
   val a = cleaner.cleanData(tok)
-  val b = a.select("raw", "rawTrimed", "filtered", "result")
+  val whatIwhantToselect = a.select("raw", "rawTrimed", "filtered", "result")
   val m = AuthorModel("AV6QDP8Q0ONK4", a, 0.9, 0.1)
   val mm = m.makeTestSet()
   val model = m.train(mm)
@@ -315,12 +337,17 @@ object Cells {
 
   /* ... new cell ... */
 
-  val top_reviewers = reviewers.sort(desc("count")).limit(10)
+  val top_reviewers = reviewers.sort(desc("count")).limit(20)
   val ress = top_reviewers.select($"count", $"reviewerID".alias("id"))
-  val post_num = ress.select("count").collect()(NUM_OF_AUTHORS - 1)
-  MINIUM_NUMBER_OF_POSTS = post_num(0).asInstanceOf[Long].toInt
+  val post_num = ress.select("count").collect()(MyConfig.NUM_OF_AUTHORS - 1)
+  MyConfig.MINIUM_NUMBER_OF_POSTS = post_num(0).asInstanceOf[Long].toInt
   
   ress.show
+
+  /* ... new cell ... */
+
+  val what = ress.select("id").collect()
+  val e = what.map(e => (e(0), 1))
 
   /* ... new cell ... */
 
